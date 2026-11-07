@@ -49,9 +49,31 @@ class CostRecord:
 
 
 @dataclass(frozen=True)
+class Completion:
+    """One language-model answer."""
+
+    text: str
+    cost: CostRecord
+    refused: bool = False
+    refusal_category: str | None = None
+
+
+@dataclass(frozen=True)
+class CostLogEntry:
+    """One row of the cost log: which call, for what, and what it cost."""
+
+    label: str  # e.g. "rag"
+    repo_id: str
+    question: str
+    cost: CostRecord
+
+
+@dataclass(frozen=True)
 class Answer:
     text: str
     mode: AnswerMode
-    sources: list[str] = field(default_factory=list)  # "app/auth.py:15-17"
+    sources: list[str] = field(default_factory=list)  # chunks shown to the model, best first
+    cited: list[str] = field(default_factory=list)  # sources the answer actually cites
     cost: CostRecord | None = None
+    refused: bool = False
     context_truncated: bool = False  # long-context mode: the repo did not fit

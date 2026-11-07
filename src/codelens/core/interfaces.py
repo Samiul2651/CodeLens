@@ -4,7 +4,7 @@ tests use fakes. Everything else depends on these, never on a concrete class.
 
 from typing import Protocol
 
-from codelens.core.models import Answer, Chunk, RetrievedChunk
+from codelens.core.models import Answer, Chunk, Completion, CostLogEntry, RetrievedChunk
 
 
 class Chunker(Protocol):
@@ -37,6 +37,16 @@ class FileStateStore(Protocol):
     def load(self, repo_id: str) -> dict[str, str]: ...
 
     def save(self, repo_id: str, hashes: dict[str, str]) -> None: ...
+
+
+class LanguageModel(Protocol):
+    def complete(self, system: str, prompt: str) -> Completion:
+        """One call. Returns the answer text plus tokens, cost and latency."""
+        ...
+
+
+class CostLog(Protocol):
+    def record(self, entry: CostLogEntry) -> None: ...
 
 
 class Answerer(Protocol):

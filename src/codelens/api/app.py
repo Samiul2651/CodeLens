@@ -1,15 +1,34 @@
 """FastAPI app factory. Run: `uv run uvicorn codelens.api.app:app --reload`."""
 
-from fastapi import FastAPI
+import logging
+from functools import lru_cache
+from typing import Annotated
+
+import anthropic
+import httpx
+from fastapi import Depends, FastAPI, HTTPException, status
 from pydantic import BaseModel
+from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
 
 from codelens import __version__
+from codelens.api.schemas import AskRequest, AskResponse
 from codelens.config import Settings, get_settings
+from codelens.core.interfaces import Answerer
+from codelens.core.models import AnswerMode
+from codelens.wiring import build_rag_answerer
+
+logger = logging.getLogger(__name__)
 
 
 class HealthResponse(BaseModel):
     status: str
     version: str
+
+
+@lru_cache
+def get_rag_answerer() -> Answerer:
+    """One shared answerer (and HTTP clients) for the whole app. Tests override this."""
+    return build_rag_answerer(get_settings())
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -19,6 +38,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/health", tags=["health"])
     def health() -> HealthResponse:
         return HealthResponse(status="ok", version=__version__)
+
+    @app.post("/ask", tags=["answers"])
+    def ask(
+        request: AskRequest, rag: Annotated[Answerer, Depends(get_rag_answerer)]
+    ) -> AskResponse:
+        if request.mode is AnswerMode.LONG_CONTEXT:
+            raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, "long_context mode is Phase 3")
+        try:
+            answer = rag.answer(request.repo_id, request.question)
+        except (httpx.HTTPError, ResponseHandlingException, UnexpectedResponse) as error:
+            # Ollama or Qdrant is down or failed. Log details, return a plain message.
+            logger.exception("search backend failed")
+            raise HTTPException(
+                status.HTTP_503_SERVICE_UNAVAILABLE, "search backend unavailable"
+            ) from error
+        except anthropic.APIError as error:
+            logger.exception("Claude call failed")
+            raise HTTPException(
+                status.HTTP_502_BAD_GATEWAY, "language model call failed"
+            ) from error
+        return AskResponse.from_answer(answer)
 
     return app
 

@@ -115,14 +115,14 @@ Each phase ends with something that runs and has tests.
 - Docker Compose with Qdrant + Ollama.
 - GitHub repo, README stub, GitHub Actions CI (lint + type check + test on push).
 
-**Phase 1 — Ingestion (1 week)** ✅ Done 2026-11-07 (tested with fake embeddings + real Qdrant; real Ollama run pending)
+**Phase 1 — Ingestion (1 week)** ✅ Done 2026-11-07 (real run: fastapi-basics, 21 files -> 71 chunks in 2 Ollama requests, ~20 s; re-run with no changes ~5 s)
 - File walker: skip `.git/`, `node_modules/`, `venv/`, build folders, binaries, files in `.gitignore`.
 - Chunkers: `LineWindowChunker` (any language) and `TreeSitterChunker` (functions/classes).
 - Each chunk keeps: repo id, file path, start/end line, language, symbol name.
 - Batch embed → batch upsert to Qdrant.
 - Re-index only changed files (hash per file).
 
-**Phase 2 — RAG answers (1 week)**
+**Phase 2 — RAG answers (1 week)** ✅ Done 2026-11-07 (Claude call tested with a fake client; real call needs an API key)
 - `POST /ask` with `mode = "rag"`.
 - Embed question → top-k search → build prompt → Claude → answer with file + line refs.
 - Log for every call: input tokens, output tokens, time, cost.

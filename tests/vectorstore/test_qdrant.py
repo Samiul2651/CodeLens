@@ -51,7 +51,8 @@ def test_wrong_vector_size_is_refused(store: QdrantVectorStore) -> None:
         store.ensure_collection(vector_size=3)
 
 
-def test_delete_and_count_before_collection_exists(store: QdrantVectorStore) -> None:
+def test_delete_count_and_search_before_collection_exists(store: QdrantVectorStore) -> None:
     store.delete_files("repo1", ["a.py"])
 
     assert store.count("repo1") == 0
+    assert store.search("repo1", [1.0, 0.0], limit=5) == []

@@ -3,6 +3,8 @@
 import re
 import zlib
 
+from codelens.core.models import Completion, CostLogEntry, CostRecord
+
 DIM = 64
 
 
@@ -34,3 +36,27 @@ class InMemoryStateStore:
 
     def save(self, repo_id: str, hashes: dict[str, str]) -> None:
         self.saved[repo_id] = dict(hashes)
+
+
+class FakeLanguageModel:
+    """Answers with a fixed text and records every prompt."""
+
+    def __init__(self, text: str = "Answer.", refused: bool = False) -> None:
+        self.calls: list[tuple[str, str]] = []
+        self._text = text
+        self._refused = refused
+
+    def complete(self, system: str, prompt: str) -> Completion:
+        self.calls.append((system, prompt))
+        cost = CostRecord("claude-opus-5-5", 1000, 100, cost_usd=0.006, latency_seconds=1.5)
+        if self._refused:
+            return Completion("", cost, refused=True, refusal_category="cyber")
+        return Completion(self._text, cost)
+
+
+class ListCostLog:
+    def __init__(self) -> None:
+        self.entries: list[CostLogEntry] = []
+
+    def record(self, entry: CostLogEntry) -> None:
+        self.entries.append(entry)

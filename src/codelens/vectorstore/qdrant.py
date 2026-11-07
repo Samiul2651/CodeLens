@@ -89,6 +89,8 @@ class QdrantVectorStore:
         self._client.delete(collection_name=self._collection, points_selector=selector)
 
     def search(self, repo_id: str, vector: list[float], limit: int) -> list[RetrievedChunk]:
+        if not self._client.collection_exists(self._collection):
+            return []  # nothing ingested yet
         response = self._client.query_points(
             collection_name=self._collection,
             query=vector,
