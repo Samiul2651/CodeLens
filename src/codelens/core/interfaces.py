@@ -24,9 +24,19 @@ class VectorStore(Protocol):
         """One write for the whole batch."""
         ...
 
-    def delete_file(self, repo_id: str, file_path: str) -> None: ...
+    def delete_files(self, repo_id: str, file_paths: list[str]) -> None:
+        """Remove every chunk of these files, in one call."""
+        ...
 
     def search(self, repo_id: str, vector: list[float], limit: int) -> list[RetrievedChunk]: ...
+
+
+class FileStateStore(Protocol):
+    """Remembers a content hash per file, so re-indexing only touches changed files."""
+
+    def load(self, repo_id: str) -> dict[str, str]: ...
+
+    def save(self, repo_id: str, hashes: dict[str, str]) -> None: ...
 
 
 class Answerer(Protocol):

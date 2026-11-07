@@ -115,7 +115,7 @@ Each phase ends with something that runs and has tests.
 - Docker Compose with Qdrant + Ollama.
 - GitHub repo, README stub, GitHub Actions CI (lint + type check + test on push).
 
-**Phase 1 — Ingestion (1 week)**
+**Phase 1 — Ingestion (1 week)** ✅ Done 2026-11-07 (tested with fake embeddings + real Qdrant; real Ollama run pending)
 - File walker: skip `.git/`, `node_modules/`, `venv/`, build folders, binaries, files in `.gitignore`.
 - Chunkers: `LineWindowChunker` (any language) and `TreeSitterChunker` (functions/classes).
 - Each chunk keeps: repo id, file path, start/end line, language, symbol name.

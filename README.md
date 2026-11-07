@@ -10,8 +10,12 @@ understanding code repositories*. Full plan: [PLAN.md](PLAN.md).
 
 ## Status
 
-Phase 0 (setup) done: project layout, core models and interfaces, `/health` API,
-Docker services, CI. Next: Phase 1 — ingestion.
+- **Phase 0 — setup:** done. Layout, core models and interfaces, `/health` API, Docker services, CI.
+- **Phase 1 — ingestion:** done. `codelens ingest` walks a repo (respecting `.gitignore`, skipping
+  binary and huge files), cuts code into function chunks with tree-sitter, embeds them in batches
+  with Ollama and stores them in Qdrant. Re-running only redoes changed files; deleted files lose
+  their chunks.
+- **Next:** Phase 2 — RAG answers with Claude.
 
 ## Stack
 
@@ -44,6 +48,24 @@ docker compose up -d                       # Qdrant + Ollama
 docker compose exec ollama ollama pull nomic-embed-text
 copy .env.example .env                     # then add your ANTHROPIC_API_KEY
 uv run uvicorn codelens.api.app:app --reload
+```
+
+Index a repo (run it again after edits: only changed files are redone):
+
+```bash
+uv run codelens ingest path/to/repo --repo-id my-repo
+```
+
+## How ingestion works
+
+```
+repo -> walk (skip .gitignore, binary, > 500 KB) -> SHA-256 per file
+     -> compare with last run's hashes (.codelens/<repo>.files.json)
+     -> delete chunks of changed + deleted files (one Qdrant call)
+     -> chunk changed files: one chunk per function (tree-sitter), line windows for the rest
+     -> embed in batches of 64 (one Ollama request per batch)
+     -> upsert each batch (one Qdrant call per batch)
+     -> save the new hashes last, so a failed run is simply redone next time
 ```
 
 API docs: http://127.0.0.1:8000/docs · Qdrant dashboard: http://localhost:6333/dashboard
