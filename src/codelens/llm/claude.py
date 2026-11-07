@@ -32,7 +32,7 @@ class ClaudeLanguageModel:
         self._max_tokens = max_tokens
         self._clock = clock
 
-    def complete(self, system: str, prompt: str) -> Completion:
+    def complete(self, system: str, prompt: str, cached_context: str | None = None) -> Completion:
         started = self._clock()
         message = self._client.beta.messages.create(
             model=self._model,
@@ -41,10 +41,41 @@ class ClaudeLanguageModel:
             output_config={"effort": self._effort},
             betas=[FALLBACK_BETA],
             fallbacks="default",
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{"role": "user", "content": user_content(prompt, cached_context)}],
         )
         latency = self._clock() - started
         return to_completion(message, latency)
+
+
+def user_content(prompt: str, cached_context: str | None) -> Any:
+    """Plain text, or [cached context block, prompt block].
+
+    Caching is a prefix match: system prompt + context are identical for every question
+    about the same repo, so they are cached; the question comes after the marker.
+    """
+    if cached_context is None:
+        return prompt
+    return [
+        {"type": "text", "text": cached_context, "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": prompt},
+    ]
+
+
+class ClaudeTokenCounter:
+    """Exact token counts from the API (free, does not run the model)."""
+
+    def __init__(self, client: anthropic.Anthropic, model: str) -> None:
+        self._client = client
+        self._model = model
+
+    def count_tokens(self, system: str, user_texts: list[str]) -> int:
+        content: Any = [{"type": "text", "text": text} for text in user_texts]
+        response = self._client.messages.count_tokens(
+            model=self._model,
+            system=system,
+            messages=[{"role": "user", "content": content}],
+        )
+        return response.input_tokens
 
 
 def to_completion(message: Any, latency_seconds: float) -> Completion:

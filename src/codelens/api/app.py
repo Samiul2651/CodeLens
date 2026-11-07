@@ -15,7 +15,7 @@ from codelens.api.schemas import AskRequest, AskResponse
 from codelens.config import Settings, get_settings
 from codelens.core.interfaces import Answerer
 from codelens.core.models import AnswerMode
-from codelens.wiring import build_rag_answerer
+from codelens.wiring import build_long_context_answerer, build_rag_answerer
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +25,15 @@ class HealthResponse(BaseModel):
     version: str
 
 
+# One shared answerer (and its HTTP clients) per mode for the whole app. Tests override these.
 @lru_cache
 def get_rag_answerer() -> Answerer:
-    """One shared answerer (and HTTP clients) for the whole app. Tests override this."""
     return build_rag_answerer(get_settings())
+
+
+@lru_cache
+def get_long_context_answerer() -> Answerer:
+    return build_long_context_answerer(get_settings())
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -41,12 +46,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/ask", tags=["answers"])
     def ask(
-        request: AskRequest, rag: Annotated[Answerer, Depends(get_rag_answerer)]
+        request: AskRequest,
+        rag: Annotated[Answerer, Depends(get_rag_answerer)],
+        long_context: Annotated[Answerer, Depends(get_long_context_answerer)],
     ) -> AskResponse:
-        if request.mode is AnswerMode.LONG_CONTEXT:
-            raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, "long_context mode is Phase 3")
+        answerer = rag if request.mode is AnswerMode.RAG else long_context
         try:
-            answer = rag.answer(request.repo_id, request.question)
+            answer = answerer.answer(request.repo_id, request.question)
         except (httpx.HTTPError, ResponseHandlingException, UnexpectedResponse) as error:
             # Ollama or Qdrant is down or failed. Log details, return a plain message.
             logger.exception("search backend failed")

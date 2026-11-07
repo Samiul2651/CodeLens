@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     claude_effort: Effort = "medium"  # Opus 5.5 default; a variable in the paper
     claude_max_tokens: int = 16_000
     top_k: int = 8  # chunks sent to Claude in RAG mode
+    # Long-context mode: max input tokens per request. Opus 5.5 takes up to 1M, but cost
+    # grows with it: 100,000 tokens x $4 / 1M = $0.40 uncached, x $0.20 / 1M = $0.02 cached.
+    context_token_budget: int = 100_000
     anthropic_api_key: SecretStr | None = Field(
         default=None, validation_alias=AliasChoices("ANTHROPIC_API_KEY")
     )

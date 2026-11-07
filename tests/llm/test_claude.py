@@ -4,7 +4,7 @@ from typing import Any, cast
 
 import pytest
 
-from codelens.llm.claude import FALLBACK_BETA, ClaudeLanguageModel
+from codelens.llm.claude import FALLBACK_BETA, ClaudeLanguageModel, ClaudeTokenCounter
 
 
 def make_message(
@@ -103,3 +103,62 @@ def test_refusal_is_reported_and_still_costed() -> None:
 def test_unknown_model_is_rejected_at_startup() -> None:
     with pytest.raises(ValueError, match="price"):
         ClaudeLanguageModel(cast(Any, object()), "claude-unknown", "low", 100)
+
+
+def test_cached_context_goes_first_and_is_marked_for_caching() -> None:
+    client = FakeAnthropic(make_message())
+
+    make_model(client).complete("sys", "Question: q?", cached_context="<excerpts>repo</excerpts>")
+
+    [call] = client.calls
+    assert call["messages"] == [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "<excerpts>repo</excerpts>",
+                    "cache_control": {"type": "ephemeral"},
+                },
+                {"type": "text", "text": "Question: q?"},
+            ],
+        }
+    ]
+
+
+def test_cache_tokens_are_costed() -> None:
+    message = make_message()
+    message.usage.cache_creation_input_tokens = 10_000
+    message.usage.cache_read_input_tokens = 20_000
+
+    completion = make_model(FakeAnthropic(message)).complete("s", "p", cached_context="ctx")
+
+    # 1000 in x $4 + 500 out x $20 + 10,000 write x $5 + 20,000 read x $0.20, all / 1M
+    assert completion.cost.cost_usd == pytest.approx(0.004 + 0.010 + 0.050 + 0.004)
+    assert (completion.cost.cache_write_tokens, completion.cost.cache_read_tokens) == (
+        10_000,
+        20_000,
+    )
+
+
+def test_token_counter_sends_one_count_request() -> None:
+    calls: list[dict[str, Any]] = []
+
+    def count_tokens(**kwargs: Any) -> SimpleNamespace:
+        calls.append(kwargs)
+        return SimpleNamespace(input_tokens=1234)
+
+    client = SimpleNamespace(messages=SimpleNamespace(count_tokens=count_tokens))
+
+    tokens = ClaudeTokenCounter(cast(Any, client), "claude-opus-5-5").count_tokens(
+        "sys", ["<excerpts>x</excerpts>", "Question: q?"]
+    )
+
+    assert tokens == 1234
+    [call] = calls
+    assert call["model"] == "claude-opus-5-5"
+    assert call["system"] == "sys"
+    assert call["messages"][0]["content"] == [
+        {"type": "text", "text": "<excerpts>x</excerpts>"},
+        {"type": "text", "text": "Question: q?"},
+    ]

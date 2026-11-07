@@ -29,9 +29,10 @@ def _repo_filter(repo_id: str) -> FieldCondition:
 
 
 class QdrantVectorStore:
-    def __init__(self, client: QdrantClient, collection: str) -> None:
+    def __init__(self, client: QdrantClient, collection: str, page_size: int = 256) -> None:
         self._client = client
         self._collection = collection
+        self._page_size = page_size
 
     def ensure_collection(self, vector_size: int) -> None:
         """Create the collection if needed. Refuse a different vector size (another model)."""
@@ -102,6 +103,26 @@ class QdrantVectorStore:
             RetrievedChunk(chunk=_chunk_from_payload(point.payload or {}), score=point.score)
             for point in response.points
         ]
+
+    def all_chunks(self, repo_id: str) -> list[Chunk]:
+        """Read every chunk of a repo, one page at a time (no vectors, just payloads)."""
+        if not self._client.collection_exists(self._collection):
+            return []
+        chunks: list[Chunk] = []
+        offset = None
+        while True:
+            points, offset = self._client.scroll(
+                collection_name=self._collection,
+                scroll_filter=Filter(must=[_repo_filter(repo_id)]),
+                limit=self._page_size,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+            chunks += [_chunk_from_payload(point.payload or {}) for point in points]
+            if offset is None:
+                break
+        return sorted(chunks, key=lambda c: (c.file_path, c.start_line))
 
     def count(self, repo_id: str) -> int:
         if not self._client.collection_exists(self._collection):

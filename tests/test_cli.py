@@ -41,3 +41,24 @@ def test_api_key_is_hidden_in_reprs() -> None:
     settings = Settings(anthropic_api_key=SecretStr("test-key-not-real"))
 
     assert "test-key-not-real" not in repr(settings)
+
+
+def test_ask_mode_option() -> None:
+    from codelens.core.models import AnswerMode
+
+    parser = build_parser()
+
+    assert parser.parse_args(["ask", "q", "--repo-id", "d"]).mode is AnswerMode.RAG
+    args = parser.parse_args(["ask", "q", "--repo-id", "d", "--mode", "long_context"])
+    assert args.mode is AnswerMode.LONG_CONTEXT
+    with pytest.raises(SystemExit):
+        parser.parse_args(["ask", "q", "--repo-id", "d", "--mode", "magic"])
+
+
+def test_long_context_answerer_is_wired() -> None:
+    from codelens.answering.long_context import LongContextAnswerer
+    from codelens.wiring import build_long_context_answerer
+
+    settings = Settings(anthropic_api_key=SecretStr("test-key-not-real"))
+
+    assert isinstance(build_long_context_answerer(settings), LongContextAnswerer)

@@ -18,7 +18,10 @@ understanding code repositories*. Full plan: [PLAN.md](PLAN.md).
 - **Phase 2 — RAG answers:** done. `POST /ask` and `codelens ask` embed the question, take the
   8 closest chunks of that repo, and ask Claude to answer from them only, citing `path:start-end`.
   Every call's tokens, cost and latency go to `.codelens/cost_log.csv`.
-- **Next:** Phase 3 — long-context answers.
+- **Phase 3 — long-context answers:** done. `mode: "long_context"` sends every chunk of the repo
+  that fits a token budget (default 100,000), whole files in priority order, as one
+  prompt-cached block. Same chunks and same system prompt as RAG, so only the selection differs.
+- **Next:** Phase 4 — evaluation harness.
 
 ## Stack
 
@@ -80,6 +83,26 @@ the answer actually cites — made-up citations are dropped), and `cost` (tokens
 question -> Ollama (1 request) -> Qdrant: 8 closest chunks of this repo
          -> Claude: system prompt "answer only from these excerpts, cite path:start-end"
          -> answer + sources + cited + cost  -> one row in .codelens/cost_log.csv
+```
+
+## How a long-context answer works
+
+```
+all chunks of the repo (read back from Qdrant, same content RAG searches)
+  -> group by file; order: root README/docs, source, tests, config; then by path
+  -> take whole files while the estimate (chars / 3) fits the budget
+  -> check with ONE exact token count; drop files from the end if over
+  -> Claude: [system prompt][repo block, cached][question]
+  -> answer + cited + cost + context_truncated
+```
+
+Cost example — a repo of ~10,700 tokens on Opus 5.5 (prices per 1M tokens):
+- first question: 10,700 cache-write tokens x $5.00 = $0.054, plus output
+- next questions within 5 minutes: 10,700 cache-read tokens x $0.20 = $0.002, plus output
+- without caching every question would pay 10,700 x $4.00 = $0.043 input
+
+```bash
+uv run codelens ask "how is the app structured?" --repo-id my-repo --mode long_context
 ```
 
 Errors: Ollama or Qdrant down -> 503, Claude failure -> 502 (details only in the server log).

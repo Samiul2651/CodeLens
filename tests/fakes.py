@@ -43,15 +43,29 @@ class FakeLanguageModel:
 
     def __init__(self, text: str = "Answer.", refused: bool = False) -> None:
         self.calls: list[tuple[str, str]] = []
+        self.cached_contexts: list[str | None] = []
         self._text = text
         self._refused = refused
 
-    def complete(self, system: str, prompt: str) -> Completion:
+    def complete(self, system: str, prompt: str, cached_context: str | None = None) -> Completion:
         self.calls.append((system, prompt))
+        self.cached_contexts.append(cached_context)
         cost = CostRecord("claude-opus-5-5", 1000, 100, cost_usd=0.006, latency_seconds=1.5)
         if self._refused:
             return Completion("", cost, refused=True, refusal_category="cyber")
         return Completion(self._text, cost)
+
+
+class CharTokenCounter:
+    """Fake exact counter: `chars_per_token` characters = 1 token. Records each call."""
+
+    def __init__(self, chars_per_token: float = 3.0) -> None:
+        self.calls = 0
+        self._chars_per_token = chars_per_token
+
+    def count_tokens(self, system: str, user_texts: list[str]) -> int:
+        self.calls += 1
+        return int((len(system) + sum(len(t) for t in user_texts)) / self._chars_per_token)
 
 
 class ListCostLog:

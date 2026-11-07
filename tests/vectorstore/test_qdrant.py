@@ -56,3 +56,19 @@ def test_delete_count_and_search_before_collection_exists(store: QdrantVectorSto
 
     assert store.count("repo1") == 0
     assert store.search("repo1", [1.0, 0.0], limit=5) == []
+
+
+def test_all_chunks_reads_every_page_in_file_order() -> None:
+    from qdrant_client import QdrantClient
+
+    store = QdrantVectorStore(QdrantClient(location=":memory:"), "paged", page_size=2)
+    store.ensure_collection(vector_size=2)
+    chunks = [Chunk("repo1", f"f{n % 3}.py", "python", n, n, f"line {n}") for n in range(1, 8)]
+    store.upsert(chunks, [[1.0, 0.0]] * len(chunks))
+    store.upsert([OTHER_REPO], [[1.0, 0.0]])
+
+    result = store.all_chunks("repo1")
+
+    assert len(result) == 7
+    assert result == sorted(chunks, key=lambda c: (c.file_path, c.start_line))
+    assert store.all_chunks("missing-repo") == []

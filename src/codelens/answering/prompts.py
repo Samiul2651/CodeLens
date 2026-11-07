@@ -28,9 +28,14 @@ def format_excerpts(chunks: list[Chunk]) -> str:
     return "\n\n".join(parts)
 
 
+def question_block(question: str) -> str:
+    return f"Question: {question}"
+
+
 def build_prompt(chunks: list[Chunk], question: str) -> str:
-    """Excerpts first, question last: the model reads the code, then the question."""
-    return f"<excerpts>\n{format_excerpts(chunks)}\n</excerpts>\n\nQuestion: {question}"
+    """Excerpts first, question last: the model reads the code, then the question.
+    Long-context mode sends the same two parts as separate blocks so the first is cached."""
+    return f"<excerpts>\n{format_excerpts(chunks)}\n</excerpts>\n\n{question_block(question)}"
 
 
 def cited_sources(answer_text: str, shown: list[str]) -> list[str]:

@@ -29,6 +29,7 @@ class AskResponse(BaseModel):
     sources: list[str]
     cited: list[str]
     refused: bool
+    context_truncated: bool  # long-context mode: some files did not fit the budget
     cost: CostResponse | None
 
     @classmethod
@@ -40,5 +41,6 @@ class AskResponse(BaseModel):
             sources=answer.sources,
             cited=answer.cited,
             refused=answer.refused,
+            context_truncated=answer.context_truncated,
             cost=CostResponse(**vars(cost)) if cost is not None else None,
         )

@@ -6,13 +6,17 @@ from pathlib import Path
 import anthropic
 from qdrant_client import QdrantClient
 
+from codelens.answering.context_packer import ContextPacker
+from codelens.answering.long_context import LongContextAnswerer
 from codelens.answering.rag import RagAnswerer
 from codelens.chunking.chunkers import TreeSitterChunker
 from codelens.config import Settings
+from codelens.core.interfaces import Answerer
+from codelens.core.models import AnswerMode
 from codelens.embedding.ollama import OllamaEmbedder
 from codelens.ingestion.service import IngestionService
 from codelens.ingestion.state import JsonFileStateStore
-from codelens.llm.claude import ClaudeLanguageModel
+from codelens.llm.claude import ClaudeLanguageModel, ClaudeTokenCounter
 from codelens.llm.cost_log import CsvCostLog
 from codelens.vectorstore.qdrant import QdrantVectorStore
 
@@ -25,6 +29,17 @@ def _embedder(settings: Settings) -> OllamaEmbedder:
 
 def _store(settings: Settings) -> QdrantVectorStore:
     return QdrantVectorStore(QdrantClient(url=settings.qdrant_url), settings.collection)
+
+
+def _anthropic_client(settings: Settings) -> anthropic.Anthropic:
+    key = settings.anthropic_api_key
+    return anthropic.Anthropic(api_key=key.get_secret_value()) if key else anthropic.Anthropic()
+
+
+def _model(settings: Settings, client: anthropic.Anthropic) -> ClaudeLanguageModel:
+    return ClaudeLanguageModel(
+        client, settings.claude_model, settings.claude_effort, settings.claude_max_tokens
+    )
 
 
 def build_ingestion_service(settings: Settings) -> IngestionService:
@@ -43,11 +58,23 @@ def build_cost_log(settings: Settings) -> CsvCostLog:
 
 
 def build_rag_answerer(settings: Settings) -> RagAnswerer:
-    key = settings.anthropic_api_key
-    client = anthropic.Anthropic(api_key=key.get_secret_value()) if key else anthropic.Anthropic()
-    model = ClaudeLanguageModel(
-        client, settings.claude_model, settings.claude_effort, settings.claude_max_tokens
-    )
+    model = _model(settings, _anthropic_client(settings))
     return RagAnswerer(
         _embedder(settings), _store(settings), model, build_cost_log(settings), settings.top_k
     )
+
+
+def build_long_context_answerer(settings: Settings) -> LongContextAnswerer:
+    client = _anthropic_client(settings)
+    packer = ContextPacker(
+        ClaudeTokenCounter(client, settings.claude_model), settings.context_token_budget
+    )
+    return LongContextAnswerer(
+        _store(settings), _model(settings, client), packer, build_cost_log(settings)
+    )
+
+
+def build_answerer(settings: Settings, mode: AnswerMode) -> Answerer:
+    if mode is AnswerMode.RAG:
+        return build_rag_answerer(settings)
+    return build_long_context_answerer(settings)

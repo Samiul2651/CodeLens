@@ -4,7 +4,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from codelens.api.app import create_app, get_rag_answerer
+from codelens.api.app import create_app, get_long_context_answerer, get_rag_answerer
 from codelens.config import Settings
 from codelens.core.models import Answer, AnswerMode, CostRecord
 
@@ -27,9 +27,12 @@ class StubAnswerer:
         )
 
 
-def client_with(answerer: StubAnswerer) -> Iterator[TestClient]:
+def client_with(
+    answerer: StubAnswerer, long_context: StubAnswerer | None = None
+) -> Iterator[TestClient]:
     app = create_app(Settings(app_name="Test"))
     app.dependency_overrides[get_rag_answerer] = lambda: answerer
+    app.dependency_overrides[get_long_context_answerer] = lambda: long_context or StubAnswerer()
     with TestClient(app) as client:
         yield client
 
@@ -71,12 +74,18 @@ def test_bad_requests_get_422(client: TestClient, payload: dict[str, str]) -> No
     assert client.post("/ask", json=payload).status_code == 422
 
 
-def test_long_context_mode_is_not_ready_yet(client: TestClient) -> None:
-    response = client.post(
-        "/ask", json={"repo_id": "demo", "question": "x", "mode": "long_context"}
-    )
+def test_mode_picks_the_answerer() -> None:
+    rag, long_context = StubAnswerer(), StubAnswerer()
 
-    assert response.status_code == 501
+    for client in client_with(rag, long_context):
+        response = client.post(
+            "/ask", json={"repo_id": "demo", "question": "big picture?", "mode": "long_context"}
+        )
+
+    assert response.status_code == 200
+    assert long_context.questions == [("demo", "big picture?")]
+    assert rag.questions == []
+    assert response.json()["context_truncated"] is False
 
 
 def test_backend_down_gives_503_without_internal_details() -> None:

@@ -127,7 +127,7 @@ Each phase ends with something that runs and has tests.
 - Embed question → top-k search → build prompt → Claude → answer with file + line refs.
 - Log for every call: input tokens, output tokens, time, cost.
 
-**Phase 3 — Long-context answers (3–4 days)**
+**Phase 3 — Long-context answers (3–4 days)** ✅ Done 2026-11-07 (uses the same stored chunks as RAG; real Claude call needs an API key)
 - `ContextPacker`: put files into the prompt until a token limit is reached.
 - Order files by a simple rule (e.g. most important folders first) and record when the repo did not fit.
 - Use prompt caching so the same repo context is not paid for in full on every question.

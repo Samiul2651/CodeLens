@@ -30,6 +30,10 @@ class VectorStore(Protocol):
 
     def search(self, repo_id: str, vector: list[float], limit: int) -> list[RetrievedChunk]: ...
 
+    def all_chunks(self, repo_id: str) -> list[Chunk]:
+        """Every chunk of a repo, sorted by file path, then start line."""
+        ...
+
 
 class FileStateStore(Protocol):
     """Remembers a content hash per file, so re-indexing only touches changed files."""
@@ -40,8 +44,18 @@ class FileStateStore(Protocol):
 
 
 class LanguageModel(Protocol):
-    def complete(self, system: str, prompt: str) -> Completion:
-        """One call. Returns the answer text plus tokens, cost and latency."""
+    def complete(self, system: str, prompt: str, cached_context: str | None = None) -> Completion:
+        """One call. Returns the answer text plus tokens, cost and latency.
+
+        cached_context: a large, repeated block (a whole repo) sent before `prompt` and
+        marked for prompt caching, so later questions about the same repo read it cheaply.
+        """
+        ...
+
+
+class TokenCounter(Protocol):
+    def count_tokens(self, system: str, user_texts: list[str]) -> int:
+        """Exact input tokens for a request with this system prompt and these user texts."""
         ...
 
 
