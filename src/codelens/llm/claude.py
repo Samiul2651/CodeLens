@@ -1,7 +1,8 @@
 """Claude as a LanguageModel: one call in, text + tokens + cost + latency out."""
 
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from typing import Any
 
 import anthropic
@@ -13,6 +14,24 @@ from codelens.llm.pricing import PRICES, cost_usd
 # Refusal fallback: if a safety check declines, the API retries on a suitable model
 # inside the same call (beta).
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
+
+
+class MissingCredentialsError(RuntimeError):
+    """The SDK found no Anthropic credentials (ANTHROPIC_API_KEY is not set)."""
+
+
+@contextmanager
+def credentials_checked() -> Iterator[None]:
+    """The SDK only notices missing credentials when a request is sent, and then raises a
+    plain TypeError. Turn exactly that one into a clear error; re-raise anything else."""
+    try:
+        yield
+    except TypeError as error:
+        if "authentication method" not in str(error):
+            raise
+        raise MissingCredentialsError(
+            "no Anthropic credentials: set ANTHROPIC_API_KEY in .env"
+        ) from error
 
 
 class ClaudeLanguageModel:
@@ -34,15 +53,16 @@ class ClaudeLanguageModel:
 
     def complete(self, system: str, prompt: str, cached_context: str | None = None) -> Completion:
         started = self._clock()
-        message = self._client.beta.messages.create(
-            model=self._model,
-            max_tokens=self._max_tokens,
-            system=system,
-            output_config={"effort": self._effort},
-            betas=[FALLBACK_BETA],
-            fallbacks="default",
-            messages=[{"role": "user", "content": user_content(prompt, cached_context)}],
-        )
+        with credentials_checked():
+            message = self._client.beta.messages.create(
+                model=self._model,
+                max_tokens=self._max_tokens,
+                system=system,
+                output_config={"effort": self._effort},
+                betas=[FALLBACK_BETA],
+                fallbacks="default",
+                messages=[{"role": "user", "content": user_content(prompt, cached_context)}],
+            )
         latency = self._clock() - started
         return to_completion(message, latency)
 
@@ -70,11 +90,12 @@ class ClaudeTokenCounter:
 
     def count_tokens(self, system: str, user_texts: list[str]) -> int:
         content: Any = [{"type": "text", "text": text} for text in user_texts]
-        response = self._client.messages.count_tokens(
-            model=self._model,
-            system=system,
-            messages=[{"role": "user", "content": content}],
-        )
+        with credentials_checked():
+            response = self._client.messages.count_tokens(
+                model=self._model,
+                system=system,
+                messages=[{"role": "user", "content": content}],
+            )
         return response.input_tokens
 
 

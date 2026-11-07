@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     # set CODELENS_JUDGE_MODEL=claude-sonnet-5-5 to use a different model than the answerer.
     judge_model: str = "claude-opus-5-5"
     judge_effort: Effort = "low"
+
+    # Demo page: where the Streamlit app finds the API.
+    api_url: str = "http://127.0.0.1:8000"
+
     anthropic_api_key: SecretStr | None = Field(
         default=None, validation_alias=AliasChoices("ANTHROPIC_API_KEY")
     )

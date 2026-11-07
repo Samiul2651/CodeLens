@@ -35,6 +35,14 @@ class VectorStore(Protocol):
         ...
 
 
+class RepoCatalog(Protocol):
+    """Which repos have been ingested (the demo page lists them)."""
+
+    def repo_ids(self) -> list[str]:
+        """Sorted ids of every repo with at least one stored chunk."""
+        ...
+
+
 class FileStateStore(Protocol):
     """Remembers a content hash per file, so re-indexing only touches changed files."""
 

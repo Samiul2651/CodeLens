@@ -4,7 +4,13 @@ from typing import Any, cast
 
 import pytest
 
-from codelens.llm.claude import FALLBACK_BETA, ClaudeLanguageModel, ClaudeTokenCounter
+from codelens.llm.claude import (
+    FALLBACK_BETA,
+    ClaudeLanguageModel,
+    ClaudeTokenCounter,
+    MissingCredentialsError,
+    credentials_checked,
+)
 
 
 def make_message(
@@ -162,3 +168,13 @@ def test_token_counter_sends_one_count_request() -> None:
         {"type": "text", "text": "<excerpts>x</excerpts>"},
         {"type": "text", "text": "Question: q?"},
     ]
+
+
+def test_missing_credentials_become_a_clear_error() -> None:
+    with pytest.raises(MissingCredentialsError, match="ANTHROPIC_API_KEY"), credentials_checked():
+        raise TypeError('"Could not resolve authentication method. Expected one of api_key"')
+
+
+def test_other_type_errors_are_not_hidden() -> None:
+    with pytest.raises(TypeError, match="unexpected keyword"), credentials_checked():
+        raise TypeError("create() got an unexpected keyword argument 'foo'")

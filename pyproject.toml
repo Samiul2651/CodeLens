@@ -29,6 +29,13 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.11",
 ]
+ui = [
+    "streamlit>=1.40",
+]
+
+[tool.uv]
+# `uv sync` installs the demo page too; the Docker image picks groups itself.
+default-groups = ["dev", "ui"]
 
 [build-system]
 requires = ["hatchling"]

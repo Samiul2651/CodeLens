@@ -44,3 +44,7 @@ class AskResponse(BaseModel):
             context_truncated=answer.context_truncated,
             cost=CostResponse(**vars(cost)) if cost is not None else None,
         )
+
+
+class ReposResponse(BaseModel):
+    repos: list[str]  # ingested repo ids, sorted

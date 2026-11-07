@@ -74,10 +74,10 @@ codelens/
 │  ├─ llm/           # ClaudeAnswerGenerator, cost tracking
 │  ├─ ingestion/     # Walk repo → chunk → embed in batches → save
 │  ├─ answering/     # RagAnswerer, LongContextAnswerer
-│  ├─ api/           # FastAPI app: POST /repos, POST /ask
-│  └─ evaluation/    # Run question sets, score, write CSV
+│  ├─ api/           # FastAPI app: GET /repos, POST /ask
+│  ├─ evaluation/    # Run question sets, score, write CSV
+│  └─ ui/            # Streamlit demo page (a client of the API)
 ├─ analysis/         # Notebooks/scripts for paper tables and charts
-├─ ui/               # Streamlit demo
 └─ tests/            # Unit tests + Qdrant tests (Testcontainers)
 ```
 
@@ -139,7 +139,7 @@ Each phase ends with something that runs and has tests.
 - Scores: did it find the right files (file recall), is the answer correct (LLM judge + your manual check on a sample), tokens, cost, time.
 - `analysis/` scripts turn the CSV into paper tables and charts.
 
-**Phase 5 — Portfolio polish (1 week)**
+**Phase 5 — Portfolio polish (1 week)** ✅ Done 2026-11-08, except the GIF (needs a real answer, so an API key) and the CI badge (added once CI runs on GitHub)
 - Streamlit page: pick repo, ask, switch mode, see answer with file refs and cost.
 - README with diagram, demo GIF, how to run in one command.
 - Clean tests, CI badge.
@@ -202,4 +202,4 @@ Before the full run, the pilot (step 3 above) gives us real numbers to put in th
 
 ## 12. Next step
 
-Start **Practice project 2: `qdrant-playground`**.
+Run the pilot (needs an API key, about $0.45), then start the literature review.

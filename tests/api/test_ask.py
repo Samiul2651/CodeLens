@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from codelens.api.app import create_app, get_long_context_answerer, get_rag_answerer
 from codelens.config import Settings
 from codelens.core.models import Answer, AnswerMode, CostRecord
+from codelens.llm.claude import MissingCredentialsError
 
 
 class StubAnswerer:
@@ -96,3 +97,13 @@ def test_backend_down_gives_503_without_internal_details() -> None:
 
     assert response.status_code == 503
     assert "10.0.0.5" not in response.text
+
+
+def test_missing_claude_credentials_give_a_clear_503() -> None:
+    answerer = StubAnswerer(error=MissingCredentialsError("no credentials"))
+
+    for client in client_with(answerer):
+        response = client.post("/ask", json={"repo_id": "demo", "question": "x"})
+
+    assert response.status_code == 503
+    assert "ANTHROPIC_API_KEY" in response.json()["detail"]

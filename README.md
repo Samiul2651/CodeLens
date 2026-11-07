@@ -8,6 +8,44 @@ Ask questions about a codebase. CodeLens answers in two ways and measures both:
 It is also the test setup for a research paper: *RAG vs. long-context LLMs for
 understanding code repositories*. Full plan: [PLAN.md](PLAN.md).
 
+```mermaid
+flowchart LR
+    repo[(Git repo)] --> walk[Walk files<br/>skip .gitignore, binary] --> chunk[tree-sitter<br/>function chunks]
+    chunk --> embed[Ollama<br/>embeddings] --> qdrant[(Qdrant)]
+    q([Question]) --> mode{Mode}
+    mode -- RAG --> search[Embed question<br/>top-8 chunks] --> claude[Claude]
+    mode -- long-context --> pack[Pack all chunks<br/>into token budget<br/>prompt-cached] --> claude
+    qdrant -.-> search
+    qdrant -.-> pack
+    claude --> answer([Answer + cited path:lines<br/>+ tokens, cost, time])
+    answer --> eval[Eval harness<br/>recall, LLM judge, CSV]
+```
+
+## Quick start (one command)
+
+Needs Docker. Put your key in `.env` first (`copy .env.example .env`, then fill in
+`ANTHROPIC_API_KEY`). Without a key, everything works except the Claude answer.
+
+```bash
+docker compose up -d --build
+```
+
+This starts Qdrant, Ollama (and downloads the embedding model once), the API and the demo page:
+
+- demo page: http://localhost:8501
+- API docs: http://localhost:8000/docs
+- Qdrant dashboard: http://localhost:6333/dashboard
+
+Index a repo from inside Docker (mount it read-only as `/repo`):
+
+```bash
+docker compose run --rm -v "D:/path/to/repo:/repo:ro" api codelens ingest /repo --repo-id my-repo
+```
+
+Then open the demo page, pick the repo, pick a mode and ask. The page shows the answer,
+the chunks Claude saw (cited ones marked), and the cost: tokens, dollars and seconds.
+The page only talks to the HTTP API, the same way `curl` would.
+
 ## Status
 
 - **Phase 0 — setup:** done. Layout, core models and interfaces, `/health` API, Docker services, CI.
@@ -24,7 +62,9 @@ understanding code repositories*. Full plan: [PLAN.md](PLAN.md).
 - **Phase 4 — evaluation harness:** done. `codelens eval run` answers a question set in both
   modes, scores each answer (file recall + an LLM judge), and writes one CSV row per answer;
   `codelens eval summarize` turns it into a table per mode and question type.
-- **Next:** run the pilot with a real API key, then Phase 5 — portfolio polish.
+- **Phase 5 — portfolio polish:** done. Streamlit demo page, `GET /repos`, one-command Docker
+  setup, diagram. A demo GIF follows the first run with a real API key.
+- **Next:** run the pilot with a real API key; the paper's literature review.
 
 ## Stack
 
@@ -42,21 +82,23 @@ src/codelens/
   ingestion/     walk repo, embed in batches, store           (Phase 1)
   llm/           Claude calls, token counting, cost           (Phase 2)
   answering/     RAG and long-context answerers               (Phases 2-3)
-  api/           FastAPI app
+  api/           FastAPI app: GET /health, GET /repos, POST /ask
   evaluation/    question sets, scoring, CSV results          (Phase 4)
+  ui/            Streamlit demo page (an API client)          (Phase 5)
 analysis/        paper tables and charts
-ui/              demo page
 tests/
 ```
 
-## Run
+## Run for development (without Docker for the app)
+
+Needs Ollama installed on your PC (`ollama pull nomic-embed-text`) and Qdrant
+(`docker compose up -d qdrant`).
 
 ```bash
 uv sync
-docker compose up -d                       # Qdrant + Ollama
-docker compose exec ollama ollama pull nomic-embed-text
 copy .env.example .env                     # then add your ANTHROPIC_API_KEY
 uv run uvicorn codelens.api.app:app --reload
+uv run streamlit run src/codelens/ui/streamlit_app.py
 ```
 
 Index a repo (run it again after edits: only changed files are redone):
@@ -108,7 +150,8 @@ Cost example — a repo of ~10,700 tokens on Opus 5.5 (prices per 1M tokens):
 uv run codelens ask "how is the app structured?" --repo-id my-repo --mode long_context
 ```
 
-Errors: Ollama or Qdrant down -> 503, Claude failure -> 502 (details only in the server log).
+Errors: Ollama or Qdrant down -> 503, no Claude key -> 503 with a plain message,
+Claude failure -> 502. Internal details go only to the server log.
 
 ## Evaluation (for the paper)
 
@@ -152,8 +195,6 @@ repo -> walk (skip .gitignore, binary, > 500 KB) -> SHA-256 per file
      -> upsert each batch (one Qdrant call per batch)
      -> save the new hashes last, so a failed run is simply redone next time
 ```
-
-API docs: http://127.0.0.1:8000/docs · Qdrant dashboard: http://localhost:6333/dashboard
 
 ## Checks (same as CI)
 

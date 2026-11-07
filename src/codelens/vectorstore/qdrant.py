@@ -17,6 +17,8 @@ from qdrant_client.models import (
 
 from codelens.core.models import Chunk, RetrievedChunk
 
+MAX_REPOS = 1_000  # facet limit when listing repos
+
 
 def point_id(chunk: Chunk) -> str:
     """Stable id: re-indexing the same chunk replaces it instead of adding a copy."""
@@ -123,6 +125,13 @@ class QdrantVectorStore:
             if offset is None:
                 break
         return sorted(chunks, key=lambda c: (c.file_path, c.start_line))
+
+    def repo_ids(self) -> list[str]:
+        """One facet call on the indexed repo_id field: distinct values, no scrolling."""
+        if not self._client.collection_exists(self._collection):
+            return []
+        response = self._client.facet(self._collection, key="repo_id", limit=MAX_REPOS)
+        return sorted(str(hit.value) for hit in response.hits)
 
     def count(self, repo_id: str) -> int:
         if not self._client.collection_exists(self._collection):

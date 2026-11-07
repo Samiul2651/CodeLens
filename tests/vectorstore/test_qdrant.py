@@ -72,3 +72,12 @@ def test_all_chunks_reads_every_page_in_file_order() -> None:
     assert len(result) == 7
     assert result == sorted(chunks, key=lambda c: (c.file_path, c.start_line))
     assert store.all_chunks("missing-repo") == []
+
+
+def test_repo_ids_lists_each_repo_once_sorted(store: QdrantVectorStore) -> None:
+    assert store.repo_ids() == []  # no collection yet
+
+    store.ensure_collection(vector_size=2)
+    store.upsert([OTHER_REPO, A, B], [[1.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
+
+    assert store.repo_ids() == ["repo1", "repo2"]

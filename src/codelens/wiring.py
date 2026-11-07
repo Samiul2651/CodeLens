@@ -11,7 +11,7 @@ from codelens.answering.long_context import LongContextAnswerer
 from codelens.answering.rag import RagAnswerer
 from codelens.chunking.chunkers import TreeSitterChunker
 from codelens.config import Settings
-from codelens.core.interfaces import Answerer
+from codelens.core.interfaces import Answerer, RepoCatalog
 from codelens.core.models import AnswerMode
 from codelens.embedding.ollama import OllamaEmbedder
 from codelens.evaluation.judge import LLMJudge
@@ -52,6 +52,10 @@ def build_ingestion_service(settings: Settings) -> IngestionService:
         batch_size=settings.embed_batch_size,
         max_file_bytes=settings.max_file_bytes,
     )
+
+
+def build_repo_catalog(settings: Settings) -> RepoCatalog:
+    return _store(settings)
 
 
 def build_cost_log(settings: Settings) -> CsvCostLog:

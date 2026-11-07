@@ -1,9 +1,12 @@
-# Local services for CodeLens. Start: `docker compose up -d`
+# Everything in one command: `docker compose up -d --build`
+#   demo page  http://localhost:8501
+#   API docs   http://localhost:8000/docs
+#   Qdrant     http://localhost:6333/dashboard
 services:
   qdrant:
     image: qdrant/qdrant:v1.20.0
     ports:
-      - "6333:6333"   # REST API + dashboard (http://localhost:6333/dashboard)
+      - "6333:6333"   # REST API + dashboard
       - "6334:6334"   # gRPC
     volumes:
       # Docker-managed volume: Windows folder mounts break Qdrant's file renames.
@@ -12,12 +15,12 @@ services:
 
   ollama:
     image: ollama/ollama:0.40.14
-    ports:
-      - "11434:11434"
+    # No host port: it would clash with an Ollama installed on your PC.
+    # Containers reach it at http://ollama:11434.
     volumes:
       - ollama_models:/root/.ollama
     restart: unless-stopped
-    # To use the NVIDIA GPU (RTX 3050), uncomment. Needs Docker Desktop with WSL2 GPU support.
+    # To use an NVIDIA GPU, uncomment. Needs Docker Desktop with WSL2 GPU support.
     # deploy:
     #   resources:
     #     reservations:
@@ -26,6 +29,50 @@ services:
     #           count: all
     #           capabilities: [gpu]
 
+  # Downloads the embedding model once, then exits.
+  ollama-pull:
+    image: ollama/ollama:0.40.14
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["ollama", "pull", "nomic-embed-text"]
+    depends_on:
+      - ollama
+    restart: "no"
+
+  api:
+    build: .
+    image: codelens:local
+    env_file:
+      - path: .env       # ANTHROPIC_API_KEY
+        required: false
+    environment:
+      CODELENS_QDRANT_URL: http://qdrant:6333
+      CODELENS_OLLAMA_URL: http://ollama:11434
+    ports:
+      - "8000:8000"
+    volumes:
+      - codelens_data:/app/.codelens   # file hashes + cost log
+    depends_on:
+      qdrant:
+        condition: service_started
+      ollama-pull:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  ui:
+    build: .
+    image: codelens:local
+    command: ["streamlit", "run", "src/codelens/ui/streamlit_app.py",
+              "--server.address=0.0.0.0", "--server.port=8501", "--server.headless=true"]
+    environment:
+      CODELENS_API_URL: http://api:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    restart: unless-stopped
+
 volumes:
   qdrant_data:
   ollama_models:
+  codelens_data:
