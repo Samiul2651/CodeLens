@@ -21,7 +21,10 @@ understanding code repositories*. Full plan: [PLAN.md](PLAN.md).
 - **Phase 3 — long-context answers:** done. `mode: "long_context"` sends every chunk of the repo
   that fits a token budget (default 100,000), whole files in priority order, as one
   prompt-cached block. Same chunks and same system prompt as RAG, so only the selection differs.
-- **Next:** Phase 4 — evaluation harness.
+- **Phase 4 — evaluation harness:** done. `codelens eval run` answers a question set in both
+  modes, scores each answer (file recall + an LLM judge), and writes one CSV row per answer;
+  `codelens eval summarize` turns it into a table per mode and question type.
+- **Next:** run the pilot with a real API key, then Phase 5 — portfolio polish.
 
 ## Stack
 
@@ -106,6 +109,36 @@ uv run codelens ask "how is the app structured?" --repo-id my-repo --mode long_c
 ```
 
 Errors: Ollama or Qdrant down -> 503, Claude failure -> 502 (details only in the server log).
+
+## Evaluation (for the paper)
+
+A question set is JSON: each question has a repo, a type (`locate`, `explain_flow`,
+`architecture`), a reference answer and the files that hold the answer.
+A pilot set for the fastapi-basics repo is in [datasets/fastapi-basics.json](datasets/fastapi-basics.json).
+
+```bash
+uv run codelens eval run datasets/fastapi-basics.json --out results/pilot.csv --max-cost 1
+uv run codelens eval summarize results/pilot.csv
+```
+
+Each row scores one answer:
+
+| Column | Meaning |
+|---|---|
+| `retrieval_recall` | share of expected files among the chunks shown to Claude (RAG: did search find them? long-context: did they fit?) |
+| `cited_recall`, `cited_precision` | did the answer cite the expected files, and only those? |
+| `judge_score` | 0 wrong / 1 partial / 2 correct, from an LLM judge that sees the question, the reference and the answer — not the code or the mode |
+| tokens, `answer_cost_usd`, `judge_cost_usd`, `latency_seconds` | cost and speed |
+
+Built for paid runs: rows are written as they finish, re-running the same `--out` resumes,
+`--max-cost` stops before overspending, one failing question is recorded and skipped.
+Long-context questions for one repo run back to back so the cached repo block is reused.
+Hand-check a random sample of judge scores and report the agreement.
+
+Pilot estimate (9 questions x 2 modes + judge, Opus 5.5, ~10,700-token repo): about **$0.45**.
+- RAG: 9 x (~1,400 input x $4 + ~600 output x $20) / 1M = ~$0.16
+- Long-context: 10,700 cache write x $5 / 1M = $0.054 once, then 8 x 10,700 cache read x $0.20 / 1M = $0.017, plus 9 x ~600 output x $20 / 1M = $0.11 -> ~$0.18
+- Judge: 18 x (~500 input x $4 + ~150 output x $20) / 1M = ~$0.09
 A refusal is returned as an answer with `refused: true`, and still logged, because it still costs.
 
 ## How ingestion works

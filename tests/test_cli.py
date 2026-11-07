@@ -62,3 +62,28 @@ def test_long_context_answerer_is_wired() -> None:
     settings = Settings(anthropic_api_key=SecretStr("test-key-not-real"))
 
     assert isinstance(build_long_context_answerer(settings), LongContextAnswerer)
+
+
+def test_eval_commands_parse(tmp_path: object) -> None:
+    from codelens.core.models import AnswerMode
+
+    parser = build_parser()
+    run = parser.parse_args(
+        ["eval", "run", "q.json", "--out", "r.csv", "--modes", "rag", "--max-cost", "2.5",
+         "--no-judge", "--runs", "3"]
+    )  # fmt: skip
+    assert (run.eval_command, run.modes, run.max_cost, run.no_judge, run.runs) == (
+        "run", [AnswerMode.RAG], 2.5, True, 3,
+    )  # fmt: skip
+    default = parser.parse_args(["eval", "run", "q.json", "--out", "r.csv"])
+    assert default.modes == list(AnswerMode)
+    assert parser.parse_args(["eval", "summarize", "r.csv"]).eval_command == "summarize"
+
+
+def test_judge_is_wired() -> None:
+    from codelens.evaluation.judge import LLMJudge
+    from codelens.wiring import build_judge
+
+    assert isinstance(
+        build_judge(Settings(anthropic_api_key=SecretStr("test-key-not-real"))), LLMJudge
+    )

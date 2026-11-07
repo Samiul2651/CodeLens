@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     # Long-context mode: max input tokens per request. Opus 5.5 takes up to 1M, but cost
     # grows with it: 100,000 tokens x $4 / 1M = $0.40 uncached, x $0.20 / 1M = $0.02 cached.
     context_token_budget: int = 100_000
+
+    # Evaluation: the LLM judge. Short inputs, so it is cheap even on Opus;
+    # set CODELENS_JUDGE_MODEL=claude-sonnet-5-5 to use a different model than the answerer.
+    judge_model: str = "claude-opus-5-5"
+    judge_effort: Effort = "low"
     anthropic_api_key: SecretStr | None = Field(
         default=None, validation_alias=AliasChoices("ANTHROPIC_API_KEY")
     )

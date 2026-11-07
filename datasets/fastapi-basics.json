@@ -1,0 +1,93 @@
+{
+  "name": "fastapi-basics pilot",
+  "questions": [
+    {
+      "id": "fb-01",
+      "repo_id": "fastapi-basics",
+      "question": "How are snippet ids assigned?",
+      "question_type": "locate",
+      "expected_answer": "InMemorySnippetRepository.add gives each new snippet the value of a counter (_next_id) that starts at 1 and is increased by one after each add. The add happens under a threading lock, so ids stay unique.",
+      "expected_files": ["src/fastapi_basics/tasks/task3_repository.py"]
+    },
+    {
+      "id": "fb-02",
+      "repo_id": "fastapi-basics",
+      "question": "Where are unsafe file paths rejected, and which paths count as unsafe?",
+      "question_type": "locate",
+      "expected_answer": "The SnippetIn model's field validator must_be_safe_relative_path rejects them. Backslashes are first turned into forward slashes; paths that start with '/', contain ':' (such as a drive letter), or contain a '..' part are rejected. The path must also be 1 to 300 characters long.",
+      "expected_files": ["src/fastapi_basics/tasks/task2_schemas.py"]
+    },
+    {
+      "id": "fb-03",
+      "repo_id": "fastapi-basics",
+      "question": "What does the health endpoint return?",
+      "question_type": "locate",
+      "expected_answer": "GET /health returns a HealthResponse with status \"ok\", i.e. the JSON {\"status\": \"ok\"} with status code 200.",
+      "expected_files": ["src/fastapi_basics/tasks/task1_health.py"]
+    },
+    {
+      "id": "fb-04",
+      "repo_id": "fastapi-basics",
+      "question": "Why does the snippet repository use a lock?",
+      "question_type": "locate",
+      "expected_answer": "FastAPI can run synchronous route functions in several threads at the same time. The lock protects the snippets dict and the id counter, so two requests cannot get the same id or corrupt the dict.",
+      "expected_files": ["src/fastapi_basics/tasks/task3_repository.py"]
+    },
+    {
+      "id": "fb-05",
+      "repo_id": "fastapi-basics",
+      "question": "What happens when a client asks for a snippet id that does not exist?",
+      "question_type": "explain_flow",
+      "expected_answer": "The GET /snippets/{snippet_id} route calls repository.get, which returns None for an unknown id. The route then raises an HTTPException with status 404 and detail \"Snippet <id> not found\" (built by _not_found). DELETE on an unknown id returns the same 404.",
+      "expected_files": [
+        "src/fastapi_basics/tasks/task5_snippet_routes.py",
+        "src/fastapi_basics/tasks/task3_repository.py"
+      ]
+    },
+    {
+      "id": "fb-06",
+      "repo_id": "fastapi-basics",
+      "question": "How does a POST /search request get its results?",
+      "question_type": "explain_flow",
+      "expected_answer": "The body is validated as SearchRequest (query 1-500 characters, limit 1-20, default 5). The route gets the repository and a Searcher through Depends; get_searcher returns a KeywordSearcher. It lowercases the query words, counts how often they appear in each snippet's file_path plus code, drops snippets with score 0, sorts by score (highest first, ties by lower id) and returns at most `limit` SearchHits.",
+      "expected_files": [
+        "src/fastapi_basics/tasks/task6_search.py",
+        "src/fastapi_basics/tasks/task4_dependencies.py"
+      ]
+    },
+    {
+      "id": "fb-07",
+      "repo_id": "fastapi-basics",
+      "question": "How do the tests give every test a clean, empty snippet store?",
+      "question_type": "explain_flow",
+      "expected_answer": "The client fixture in tests/conftest.py builds a new app with create_app(Settings(...)), creates a fresh InMemorySnippetRepository, and sets app.dependency_overrides[get_repository] to return it, so routes use that store instead of the shared one from get_repository.",
+      "expected_files": [
+        "tests/conftest.py",
+        "src/fastapi_basics/tasks/task4_dependencies.py"
+      ]
+    },
+    {
+      "id": "fb-08",
+      "repo_id": "fastapi-basics",
+      "question": "How is the application assembled and started?",
+      "question_type": "architecture",
+      "expected_answer": "create_app() builds a FastAPI app whose title and debug flag come from Settings (pydantic-settings, environment prefix SNIPPETS_), and includes the routers for health, snippets and search. main.py calls create_app() at import so uvicorn can run fastapi_basics.main:app.",
+      "expected_files": [
+        "src/fastapi_basics/tasks/task7_settings_and_app.py",
+        "src/fastapi_basics/main.py"
+      ]
+    },
+    {
+      "id": "fb-09",
+      "repo_id": "fastapi-basics",
+      "question": "How is storage kept separate from the HTTP routes?",
+      "question_type": "architecture",
+      "expected_answer": "Routes depend on the SnippetRepository Protocol, injected with Depends(get_repository); they never import a concrete store. get_repository returns one shared InMemorySnippetRepository (cached with lru_cache). Swapping storage means writing a new class that implements the Protocol; the routes stay the same.",
+      "expected_files": [
+        "src/fastapi_basics/tasks/task3_repository.py",
+        "src/fastapi_basics/tasks/task4_dependencies.py",
+        "src/fastapi_basics/tasks/task5_snippet_routes.py"
+      ]
+    }
+  ]
+}

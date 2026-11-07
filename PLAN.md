@@ -133,7 +133,7 @@ Each phase ends with something that runs and has tests.
 - Use prompt caching so the same repo context is not paid for in full on every question.
 - `POST /ask` with `mode = "long_context"`.
 
-**Phase 4 — Evaluation harness (1–2 weeks, overlaps the paper)**
+**Phase 4 — Evaluation harness (1–2 weeks, overlaps the paper)** ✅ Harness done 2026-11-07. Dry run (real retrieval, fake Claude) on the 9-question pilot: RAG retrieval recall 1.00 locate / 0.50 explain_flow / 0.83 architecture; long-context 1.00. Real pilot needs an API key (~$0.45).
 - Question set format (JSON): question, repo, expected answer, expected files, question type.
 - Run each question in both modes. Save results to CSV.
 - Scores: did it find the right files (file recall), is the answer correct (LLM judge + your manual check on a sample), tokens, cost, time.

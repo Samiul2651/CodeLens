@@ -14,6 +14,7 @@ from codelens.config import Settings
 from codelens.core.interfaces import Answerer
 from codelens.core.models import AnswerMode
 from codelens.embedding.ollama import OllamaEmbedder
+from codelens.evaluation.judge import LLMJudge
 from codelens.ingestion.service import IngestionService
 from codelens.ingestion.state import JsonFileStateStore
 from codelens.llm.claude import ClaudeLanguageModel, ClaudeTokenCounter
@@ -72,6 +73,13 @@ def build_long_context_answerer(settings: Settings) -> LongContextAnswerer:
     return LongContextAnswerer(
         _store(settings), _model(settings, client), packer, build_cost_log(settings)
     )
+
+
+def build_judge(settings: Settings) -> LLMJudge:
+    model = ClaudeLanguageModel(
+        _anthropic_client(settings), settings.judge_model, settings.judge_effort, 2_000
+    )
+    return LLMJudge(model)
 
 
 def build_answerer(settings: Settings, mode: AnswerMode) -> Answerer:
