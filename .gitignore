@@ -6,6 +6,7 @@ __pycache__/
 .ruff_cache/
 .env
 cost_log.csv
+.codelens/
 
 # Personal notes for Claude sessions: kept on this machine only, never published.
 CLAUDE.md
