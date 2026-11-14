@@ -3,6 +3,9 @@
 The Anthropic key is read from ANTHROPIC_API_KEY (environment or .env) as a SecretStr,
 so it never shows up in logs or reprs. If it is not set, the Anthropic SDK looks for
 credentials on its own.
+
+CODELENS_PROVIDER=deepseek switches answers and the judge to DeepSeek's Anthropic-format
+API (key in DEEPSEEK_API_KEY). Claude stays the default.
 """
 
 from functools import lru_cache
@@ -12,6 +15,7 @@ from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
+Provider = Literal["anthropic", "deepseek"]
 
 
 class Settings(BaseSettings):
@@ -48,6 +52,16 @@ class Settings(BaseSettings):
 
     anthropic_api_key: SecretStr | None = Field(
         default=None, validation_alias=AliasChoices("ANTHROPIC_API_KEY")
+    )
+
+    # Which API answers and judges. "deepseek" uses DeepSeek's Anthropic-format endpoint:
+    # same request shape, but no prompt caching, no token-count endpoint and no effort setting,
+    # so tokens are estimated locally and claude_model / judge_model / effort are not used.
+    provider: Provider = "anthropic"
+    deepseek_base_url: str = "https://api.deepseek.com/anthropic"
+    deepseek_model: str = "deepseek-flash"
+    deepseek_api_key: SecretStr | None = Field(
+        default=None, validation_alias=AliasChoices("DEEPSEEK_API_KEY")
     )
 
 

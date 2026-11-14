@@ -11,13 +11,14 @@ from codelens.answering.long_context import LongContextAnswerer
 from codelens.answering.rag import RagAnswerer
 from codelens.chunking.chunkers import TreeSitterChunker
 from codelens.config import Settings
-from codelens.core.interfaces import Answerer, RepoCatalog
+from codelens.core.interfaces import Answerer, LanguageModel, RepoCatalog, TokenCounter
 from codelens.core.models import AnswerMode
 from codelens.embedding.ollama import OllamaEmbedder
 from codelens.evaluation.judge import LLMJudge
 from codelens.ingestion.service import IngestionService
 from codelens.ingestion.state import JsonFileStateStore
-from codelens.llm.claude import ClaudeLanguageModel, ClaudeTokenCounter
+from codelens.llm.claude import ClaudeLanguageModel, ClaudeTokenCounter, MissingCredentialsError
+from codelens.llm.compatible import CompatibleLanguageModel, EstimatedTokenCounter
 from codelens.llm.cost_log import CsvCostLog
 from codelens.vectorstore.qdrant import QdrantVectorStore
 
@@ -33,14 +34,34 @@ def _store(settings: Settings) -> QdrantVectorStore:
 
 
 def _anthropic_client(settings: Settings) -> anthropic.Anthropic:
+    if settings.provider == "deepseek":
+        key = settings.deepseek_api_key
+        if key is None:
+            raise MissingCredentialsError("no DeepSeek key: set DEEPSEEK_API_KEY in .env")
+        return anthropic.Anthropic(
+            api_key=key.get_secret_value(), base_url=settings.deepseek_base_url
+        )
     key = settings.anthropic_api_key
     return anthropic.Anthropic(api_key=key.get_secret_value()) if key else anthropic.Anthropic()
 
 
-def _model(settings: Settings, client: anthropic.Anthropic) -> ClaudeLanguageModel:
+def _language_model(
+    settings: Settings, client: anthropic.Anthropic, judge: bool = False
+) -> LanguageModel:
+    if settings.provider == "deepseek":
+        max_tokens = 2_000 if judge else settings.claude_max_tokens
+        return CompatibleLanguageModel(client, settings.deepseek_model, max_tokens)
+    if judge:
+        return ClaudeLanguageModel(client, settings.judge_model, settings.judge_effort, 2_000)
     return ClaudeLanguageModel(
         client, settings.claude_model, settings.claude_effort, settings.claude_max_tokens
     )
+
+
+def _token_counter(settings: Settings, client: anthropic.Anthropic) -> TokenCounter:
+    if settings.provider == "deepseek":
+        return EstimatedTokenCounter()  # DeepSeek has no token-count endpoint
+    return ClaudeTokenCounter(client, settings.claude_model)
 
 
 def build_ingestion_service(settings: Settings) -> IngestionService:
@@ -63,7 +84,7 @@ def build_cost_log(settings: Settings) -> CsvCostLog:
 
 
 def build_rag_answerer(settings: Settings) -> RagAnswerer:
-    model = _model(settings, _anthropic_client(settings))
+    model = _language_model(settings, _anthropic_client(settings))
     return RagAnswerer(
         _embedder(settings), _store(settings), model, build_cost_log(settings), settings.top_k
     )
@@ -71,19 +92,14 @@ def build_rag_answerer(settings: Settings) -> RagAnswerer:
 
 def build_long_context_answerer(settings: Settings) -> LongContextAnswerer:
     client = _anthropic_client(settings)
-    packer = ContextPacker(
-        ClaudeTokenCounter(client, settings.claude_model), settings.context_token_budget
-    )
+    packer = ContextPacker(_token_counter(settings, client), settings.context_token_budget)
     return LongContextAnswerer(
-        _store(settings), _model(settings, client), packer, build_cost_log(settings)
+        _store(settings), _language_model(settings, client), packer, build_cost_log(settings)
     )
 
 
 def build_judge(settings: Settings) -> LLMJudge:
-    model = ClaudeLanguageModel(
-        _anthropic_client(settings), settings.judge_model, settings.judge_effort, 2_000
-    )
-    return LLMJudge(model)
+    return LLMJudge(_language_model(settings, _anthropic_client(settings), judge=True))
 
 
 def build_answerer(settings: Settings, mode: AnswerMode) -> Answerer:

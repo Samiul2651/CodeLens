@@ -99,11 +99,18 @@ def test_backend_down_gives_503_without_internal_details() -> None:
     assert "10.0.0.5" not in response.text
 
 
-def test_missing_claude_credentials_give_a_clear_503() -> None:
-    answerer = StubAnswerer(error=MissingCredentialsError("no credentials"))
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "no Anthropic credentials: set ANTHROPIC_API_KEY in .env",
+        "no DeepSeek key: set DEEPSEEK_API_KEY in .env",
+    ],
+)
+def test_missing_credentials_give_a_clear_503_naming_the_key(reason: str) -> None:
+    answerer = StubAnswerer(error=MissingCredentialsError(reason))
 
     for client in client_with(answerer):
         response = client.post("/ask", json={"repo_id": "demo", "question": "x"})
 
     assert response.status_code == 503
-    assert "ANTHROPIC_API_KEY" in response.json()["detail"]
+    assert reason in response.json()["detail"]

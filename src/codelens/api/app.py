@@ -86,7 +86,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except MissingCredentialsError as error:
             raise HTTPException(
                 status.HTTP_503_SERVICE_UNAVAILABLE,
-                "Claude credentials are not set: add ANTHROPIC_API_KEY to .env",
+                f"language model credentials are not set: {error}",
             ) from error
         except anthropic.APIError as error:
             logger.exception("Claude call failed")

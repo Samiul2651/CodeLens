@@ -43,7 +43,7 @@ services:
     build: .
     image: codelens:local
     env_file:
-      - path: .env       # ANTHROPIC_API_KEY
+      - path: .env       # ANTHROPIC_API_KEY, or CODELENS_PROVIDER=deepseek + DEEPSEEK_API_KEY
         required: false
     environment:
       CODELENS_QDRANT_URL: http://qdrant:6333

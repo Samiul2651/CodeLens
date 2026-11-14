@@ -46,6 +46,27 @@ Then open the demo page, pick the repo, pick a mode and ask. The page shows the 
 the chunks Claude saw (cited ones marked), and the cost: tokens, dollars and seconds.
 The page only talks to the HTTP API, the same way `curl` would.
 
+## Using DeepSeek instead of Claude
+
+CodeLens can answer (and judge) with DeepSeek through its Anthropic-format API. Put this in `.env`:
+
+```
+CODELENS_PROVIDER=deepseek
+DEEPSEEK_API_KEY=sk-...
+```
+
+What changes in DeepSeek mode:
+
+| | Claude (default) | DeepSeek |
+|---|---|---|
+| Model | `CODELENS_CLAUDE_MODEL` (Opus 5.5) | `CODELENS_DEEPSEEK_MODEL` (`deepseek-flash`) |
+| Prompt caching (long-context) | Yes: the repo is paid in full once, then cheaply | No: DeepSeek ignores `cache_control`, so every long-context question pays for the whole packed repo |
+| Token counts for packing | Exact, from the count-tokens endpoint | Estimated: characters / 3.5 x 1.10 (slight over-count keeps the packer under budget) |
+| Effort setting, refusal fallback | Used | Not sent |
+| Prices in the cost log | Claude prices | DeepSeek Flash peak-hour rate: $0.30 / 1M input, $1.20 / 1M output |
+
+Results from the two providers are not comparable as one experiment: report which model produced each number.
+
 ## Status
 
 - **Phase 0 — setup:** done. Layout, core models and interfaces, `/health` API, Docker services, CI.
